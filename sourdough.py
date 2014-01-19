@@ -29,7 +29,7 @@ def appendHistory(lines, message):
   subprocess.check_call(['git', 'commit', '-m', message])
 
 
-# Major history types: event, state, note, format
+# History types: event, state, note, format
 # Event types:
 # - add: Add a quantity of a substance
 # - remove: Remove a quantity, leaving behind a quantity
@@ -53,17 +53,83 @@ class History:
     return 'format ' + json.dumps({'spec':'timmc.sourdough', 'version':'1'})
 
   @staticmethod
+  def pFormat(rest):
+    return [json.loads(rest)]
+
+  @staticmethod
   def fAdd(substance, quantity, attrs={}):
     data = {'substance':substance, 'qty':quantity, 'attrs':attrs}
     return 'event add ' + stampedJson(data)
+
+  @staticmethod
+  def pEvent(rest):
+    [subtag, rest] = rest.split(' ', 1)
+    return [subtag.strip(), json.loads(rest)]
 
   @staticmethod
   def fState(name, value):
     return 'state ' + stampedJson({'name':name, 'value':value})
 
   @staticmethod
+  def pState(rest):
+    return [json.loads(rest)]
+
+  @staticmethod
   def fNote(message):
     return 'note ' + stampedJson({'text':message})
+
+  @staticmethod
+  def pNote(rest):
+    return [json.loads(rest)]
+
+  @staticmethod
+  def parse(line):
+    line = line.strip()
+    if line.startswith('#'):
+      return None
+    pieces = line.split(' ', 1)
+    if len(pieces) < 2:
+      return ['unknown', rest] # For now there aren't any no-data tags
+    [tag, rest] = pieces # assumes at least a piece of data or a sub-tag
+    rest = rest.strip()
+    tail = None
+    if tag == 'event':
+      tail = History.pEvent(rest)
+    elif tag == 'state':
+      tail = History.pState(rest)
+    elif tag == 'note':
+      tail = History.pNote(rest)
+    elif tag == 'format':
+      tail = History.pFormat(rest)
+    else:
+      return ['unknown', rest]
+    ret = [tag]
+    ret.extend(tail)
+    return ret
+
+  @staticmethod
+  def parseAll():
+    """Return a parsed version of history, as a list of lists. Each
+    list contains one or more item tags such as "event" and a final
+    element that is parsed from JSON."""
+    text = None
+    with open('history.log', 'r') as f:
+      text = f.read()
+    lines = [History.parse(line) for line in text.splitlines()]
+    # Filter out all the None responses
+    return [line for line in lines if line is not None]
+
+
+class Stats:
+  @staticmethod
+  def getName():
+    """Get the name of the current line."""
+    naming = [entry for entry in History.parseAll()
+              if entry[0] == 'state' and entry[1]['name'] == 'tsd:name']
+    if len(naming) == 0:
+      return None
+    else:
+      return naming[-1][1]['value']
 
 
 class Actions:
@@ -101,11 +167,6 @@ class Actions:
     appendHistory(lines, msg)
 
   @staticmethod
-  def current():
-    """Print the current line name."""
-    #TODO: Use history file, not branch name
-
-  @staticmethod
   def add(*args):
     """Add substance/quantity pairs from alternating list."""
     Actions.init()
@@ -122,8 +183,18 @@ class Actions:
     Actions.init()
     appendHistory([History.fNote(message)], 'Adding a note')
 
+  @staticmethod
+  def current():
+    name = Stats.getName()
+    if name is None:
+      print('This line has not been named!')
+      sys.exit(1)
+    else:
+      print(name)
 
-knownActions = ['usage', 'init', 'new', 'volume', 'contains', 'add', 'note']
+
+knownActions = ['usage', 'init', 'new', 'volume', 'contains', 'add', 'note',
+                'current']
 
 def main(args):
   if len(args) == 0:
