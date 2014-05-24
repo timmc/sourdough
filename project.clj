@@ -7,7 +7,9 @@
                  [org.clojure/data.json "0.2.4"]
                  [clj-time "0.6.0"]
                  [clj-jgit "0.6.4"]
-                 [clojopts "0.3.2"]]
+                 [clojopts "0.3.2"]
+                 [org.timmc/handy "1.6.0"]
+                 [slingshot "0.10.3"]]
   :plugins [[org.timmc/lein-otf "2.0.1"]]
   :main ^:skip-aot org.timmc.sourdough.cli
   :target-path "target/%s"
